@@ -1,25 +1,21 @@
 {
-  "dependencies": {
-    "axios": "^1.4.0",
-    "next": "^13.4.12",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-stripe": "^0.1.0"
-  },
-  "name": "credit-card-vault",
-  "version": "1.0.0",
-  "description": "A credit card vault sleek frontend",
-  "main": "index.js",
-  "devDependencies": {},
+  "name": "client-app",
+  "version": "0.1.0",
+  "private": true,
   "scripts": {
-    "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
   },
-  "keywords": [
-    "Credit",
-    "Card",
-    "Vault"
-  ],
-  "author": "Sebastian Opiyo",
-  "license": "ISC"
+  "dependencies": {
+    "autoprefixer": "10.4.14",
+    "axios": "^1.4.0",
+    "next": "13.4.12",
+    "postcss": "8.4.27",
+    "react": "18.2.0",
+    "react-credit-card-input": "^1.1.5",
+    "react-dom": "18.2.0",
+    "tailwindcss": "3.3.3"
+  }
 }
