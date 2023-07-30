@@ -1,0 +1,25 @@
+{
+  "dependencies": {
+    "axios": "^1.4.0",
+    "next": "^13.4.12",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-stripe": "^0.1.0"
+  },
+  "name": "credit-card-vault",
+  "version": "1.0.0",
+  "description": "A credit card vault sleek frontend",
+  "main": "index.js",
+  "devDependencies": {},
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "Credit",
+    "Card",
+    "Vault"
+  ],
+  "author": "Sebastian Opiyo",
+  "license": "ISC"
+}
