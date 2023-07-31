@@ -62,14 +62,6 @@ def generate_token(user_id):
     return create_access_token(identity=user_id)
 
 
-# Authentication decorator
-def protected_route(fn):
-    @jwt_required()
-    def wrapper(*args, **kwargs):
-        return fn(*args, **kwargs)
-
-    return wrapper
-
 
 # ROUTES
 
@@ -119,7 +111,7 @@ def login():
 
 # Encrypt route
 @app.route("/api/v1/encrypt", methods=["POST"])
-@protected_route
+@jwt_required()
 def encrypt():
     credit_card_number = request.json.get("credit_card_number")
     if not credit_card_number:
@@ -137,7 +129,7 @@ def encrypt():
 
 # Decrypt route
 @app.route("/api/v1/decrypt", methods=["POST"])
-@protected_route
+@jwt_required()
 def decrypt():
     user_id = get_jwt_identity()
     encrypted_data = request.json.get("data")
@@ -154,7 +146,7 @@ def decrypt():
 
 # Add a new credit card for the user
 @app.route("/api/v1/credit-cards", methods=["POST"])
-@protected_route
+@jwt_required()
 def add_credit_card():
     user_id = get_jwt_identity()
     credit_card_number = request.json.get("credit_card_number")
@@ -176,7 +168,7 @@ def add_credit_card():
 
 # Retrieve all credit cards for the authenticated user
 @app.route("/api/v1/credit-cards", methods=["GET"])
-@protected_route
+@jwt_required()
 def get_credit_cards():
     user_id = get_jwt_identity()
     session = Session()
@@ -200,7 +192,7 @@ def get_credit_cards():
 
 # Delete a credit card for the user
 @app.route("/api/v1/credit-cards/<int:credit_card_id>", methods=["DELETE"])
-@protected_route
+@jwt_required()
 def delete_credit_card(credit_card_id):
     user_id = get_jwt_identity()
     session = Session()
