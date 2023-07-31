@@ -40,7 +40,7 @@ services:
       PGPASSWORD: ${PGPASSWORD}
       PGUSER: ${PGUSER}
       PGDATABASE: ${PGDATABASE}
-      PGHOST: db
+      PGHOST: ${PGHOST}
     ports:
       - 8000:8000
     # depends_on:
