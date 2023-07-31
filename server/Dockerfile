@@ -1,10 +1,19 @@
-FROM python:3.9
+# API server
+FROM python:3.10-slim-bullseye
 
-COPY requirements.txt /app/requirements.txt
+ENV TZ=Africa/Nairobi
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONIOENCODING UTF-8
 
-RUN pip install -r /app/requirements.txt 
+WORKDIR /app
 
-COPY app.py /app/app.py
+COPY requirements.txt .
+ARG PIP_TRUSTED_HOST=127.0.0.1
+ARG PIP_INDEX_URL=https://pypi.python.org/simple/
+RUN pip3 install --quiet --no-cache-dir -r requirements.txt
 
-CMD ["python", "/app/app.py"]
+COPY server/ .
 
+EXPOSE 8000
+
+CMD ["python", "app.py"]
