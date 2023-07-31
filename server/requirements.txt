@@ -1,6 +1,0 @@
-cryptography
-Flask
-Flask-Cors
-Flask-JWT-Extended
-SQLAlchemy
-psycopg2

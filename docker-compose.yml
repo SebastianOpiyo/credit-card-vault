@@ -1,0 +1,78 @@
+version: '3.9'
+
+networks:
+  mynetwork:
+    driver: bridge
+
+services:
+  # db:
+  #   image: postgres
+  #   container_name: db
+  #   build:
+  #     context: ./db
+  #   ports:
+  #     - "5433:5432"
+  #   restart: always
+  #   mem_limit: 500M
+  #   environment:
+  #     APP_PASSWORD: ${PGPASSWORD}
+  #     POSTGRES_PASSWORD: ${PGPASSWORD}
+  #     APP_USER: ${PGUSER}
+  #     APP_DATABASE: ${PGDATABASE}
+  #   volumes:
+  #     - db_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "sh -c 'pg_isready -U ${PGUSER} -d ${PGDATABASE}'"]
+  #     interval: 30s
+  #     timeout: 60s
+  #     retries: 30
+  #     start_period: 80s
+  #   networks:
+  #     - mynetwork
+
+  server:
+    image: server
+    container_name: server
+    build:
+      context: .
+      dockerfile: ./server/Dockerfile
+    environment:
+      PGPASSWORD: ${PGPASSWORD}
+      PGUSER: ${PGUSER}
+      PGDATABASE: ${PGDATABASE}
+      PGHOST: ${PGHOST}
+    ports:
+      - 8000:8000
+    # depends_on:
+    #   db:
+    #     condition: service_healthy
+    healthcheck:
+      test: curl --fail -s http://localhost:8000/ || exit 1
+      interval: 30s
+      timeout: 60s
+      retries: 30
+    networks:
+      - mynetwork
+
+  client:
+    image: client
+    container_name: client
+    build:
+      context: .
+      dockerfile: ./client/Dockerfile
+    ports:
+      - '3000:3000'
+    depends_on:
+      server:
+        condition: service_healthy
+    healthcheck:
+      test: curl --fail -s http://localhost:3000/ || exit 1
+      interval: 30s
+      timeout: 60s
+      retries: 30
+    networks:
+      - mynetwork
+
+volumes:
+  db_data:
+    external: false
