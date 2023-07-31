@@ -1,7 +1,5 @@
-from flask import Flask, request
-from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
-from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash, check_password_hash
+from flask import Flask, request, jsonify
+from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity, get_current_user
 from flask_cors import CORS
 from sqlalchemy import Column, Integer, String, ForeignKey
 from flask_migrate import Migrate
@@ -34,13 +32,10 @@ migrate = Migrate(app, db)
 class User(db.Model):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
-    username = Column(String(500), unique=True, nullable=False)
-    password_hash = Column(String(500), nullable=False)
-    fernet_key = Column(String(500), nullable=False)  # this will be base64 encoded key
-    credit_cards = db.relationship("CreditCard", backref="user")
-
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+    username = Column(String(100), unique=True, nullable=False)
+    password = Column(String(100), nullable=False)
+    fernet_key = Column(String(100), nullable=False)
+    role = Column(String(20), default="user", nullable=False)
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
@@ -49,11 +44,14 @@ class User(db.Model):
         # convert base64 string to bytes before returning
         return base64.urlsafe_b64decode(self.fernet_key)
 
+
 # Credit Card Model
 class CreditCard(db.Model):
     __tablename__ = "credit_cards"
     id = Column(Integer, primary_key=True)
-    card_number = Column(String(16), nullable=False)  # this will be encrypted card number
+    card_number = Column(String(100), nullable=False)
+    cvv = Column(String(10), nullable=False)
+    expiry_date = Column(String(10), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"))
 
 # Helper functions
@@ -71,7 +69,8 @@ def HealthCheck():
 def home():
     return {"message": "E-Commerce Credit Card Vault."}
 
-# Signup route
+
+# Signup route (Route for all)
 @app.route("/api/v1/signup", methods=["POST"])
 def signup():
     try:
@@ -99,27 +98,26 @@ def signup():
     except Exception as e:
         return {"message": str(e)}, 500
 
-# Login route
+# Login route (Route for all)
 @app.route("/api/v1/login", methods=["POST"])
 def login():
-    try:
-        # Perform user authentication here and return the token on success
-        username = request.json.get("username")
-        password = request.json.get("password")
-        
-        if not username or not password:
-            return {"message": "Username and password are required."}, 400
-        
-        user = User.query.filter_by(username=username).first()
-        
-        if user and user.check_password(password):
-            token = generate_token(user.id)
-            return {"token": token }
-        else:
-            return {"message": "Invalid username or password."}, 401
-    except Exception as e:
-        return {"message": str(e)}, 500
-# Encrypt route
+    # Perform user authentication here and return the token on success
+    username = request.json.get("username")
+    password = request.json.get("password")
+    
+    if not username or not password:
+        return {"message": "Username and password are required."}, 400
+    
+    user = User.query.filter_by(username=username).first()
+    
+    if user and user.check_password(password):
+        token = generate_token(user.id)
+        return {"token": token }
+    else:
+        return {"message": "Invalid username or password."}, 401
+    
+
+# Encrypt route (Only for authenticated users)
 @app.route("/api/v1/encrypt", methods=["POST"])
 @jwt_required()
 def encrypt():
@@ -146,9 +144,8 @@ def encrypt():
     except Exception as e:
         return {"message": str(e)}, 500
 
-# Decrypt route
+# Decrypt route (Only for authenticated user)
 @app.route("/api/v1/decrypt", methods=["POST"])
-@jwt_required()
 @jwt_required()
 def decrypt():
     try:
@@ -171,7 +168,7 @@ def decrypt():
     except Exception as e:
         return {"message": str(e)}, 500
 
-# Add a new credit card for the user
+# Add a new credit card for the user (Only for authenticated user)
 @app.route("/api/v1/credit-cards", methods=["POST"])
 @jwt_required()
 @jwt_required()
@@ -194,9 +191,8 @@ def add_credit_card():
     except Exception as e:
         return {"message": str(e)}, 500
 
-# Retrieve all credit cards for the authenticated user
+# Retrieve all credit cards for the authenticated user (Only for authenticated user)
 @app.route("/api/v1/credit-cards", methods=["GET"])
-@jwt_required()
 @jwt_required()
 def get_credit_cards():
     try:
@@ -222,7 +218,6 @@ def get_credit_cards():
 # Delete a credit card for the user
 @app.route("/api/v1/credit-cards/<int:credit_card_id>", methods=["DELETE"])
 @jwt_required()
-@jwt_required()
 def delete_credit_card(credit_card_id):
     try:
         user_id = get_jwt_identity()
@@ -237,6 +232,56 @@ def delete_credit_card(credit_card_id):
     except Exception as e:
         return {"message": str(e)}, 500
 
+# Retrieve all users and their credit cards (only for admins)
+@app.route("/api/v1/users", methods=["GET"])
+@jwt_required()
+def get_all_users_and_credit_cards():
+    user = get_current_user()
+    if user.role != "admin":
+        return {"message": "Unauthorized. Insufficient permissions."}, 403
+    # querry all users and their credit cards information
+    session = Session()
+    users_credit_cards = {}
+    users = session.query(User).all()
+    for user in users:
+        credit_cards = [
+            {"id": card.id, "card_number": decrypt(card.card_number, user.id)}
+            for card in user.credit_cards
+        ]
+        users_credit_cards[user.username] = credit_cards
+    session.close()
+    
+    return jsonify(users_credit_cards)
+
+
+# Delete a credit card for a specific user (only for admins)
+@app.route("/api/v1/users/<int:user_id>/credit-cards/<int:credit_card_id>", methods=["DELETE"])
+@jwt_required()
+def delete_user_credit_card(user_id, credit_card_id):
+    user = get_current_user()
+    if user.role != "admin":
+        return {"message": "Unauthorized. Insufficient permissions."}, 403
+     # Check if the user exists
+    session = Session()
+    user_to_delete = session.query(User).filter_by(id=user_id).first()
+    if not user_to_delete:
+        session.close()
+        return {"message": "User not found."}, 404
+    
+    # Check if the credit card exists for the user
+    credit_card_to_delete = session.query(CreditCard).filter_by(id=credit_card_id, user_id=user_id).first()
+    if not credit_card_to_delete:
+        session.close()
+        return {"message": "Credit card not found."}, 404
+    
+    # Delete the credit card
+    session.delete(credit_card_to_delete)
+    session.commit()
+    session.close()
+    
+    return {"message": "Credit card deleted successfully."}
+
+  
 # Helper Functions
 def decrypt(encrypted_data, user_id):
     try:

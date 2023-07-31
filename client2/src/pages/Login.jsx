@@ -21,7 +21,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const BASEURL = "https://project-manager-20.herokuapp.com";
+  const BASEURL = "http://127.0.0.1:5000/v1";
 
   const handleSubmit = async (values, actions) => {
     setLoading(true);
