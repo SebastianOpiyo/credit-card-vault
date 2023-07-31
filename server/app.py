@@ -1,13 +1,13 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
 from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
+from werkzeug.security import generate_password_hash, check_password_hash
 from flask_cors import CORS
 from sqlalchemy import Column, Integer, String, ForeignKey
-import cryptography.fernet
-from werkzeug.security import generate_password_hash, check_password_hash
+from flask_migrate import Migrate
 import os
 import base64
+import cryptography.fernet
 
 # Get database connection info and the secret key from environment variables
 db_user = os.environ.get('PGUSER', 'creditcardvault')
