@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
+from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity, get_current_user
 from flask_cors import CORS
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
@@ -36,6 +36,8 @@ class User(Base):
     username = Column(String(100), unique=True, nullable=False)
     password = Column(String(100), nullable=False)
     fernet_key = Column(String(100), nullable=False)
+    role = Column(String(20), default="user", nullable=False)
+
 
     def check_password(self, password):
         return self.password == password
@@ -49,6 +51,8 @@ class CreditCard(Base):
     __tablename__ = "credit_cards"
     id = Column(Integer, primary_key=True)
     card_number = Column(String(100), nullable=False)
+    cvv = Column(String(10), nullable=False)
+    expiry_date = Column(String(10), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"))
 
     user = relationship("User", back_populates="credit_cards")
@@ -71,7 +75,7 @@ def home():
     return {"message": "E-Commerce Credit Card Vault."}
 
 
-# Signup route
+# Signup route (Route for all)
 @app.route("/api/v1/signup", methods=["POST"])
 def signup():
     username = request.json.get("username")
@@ -89,7 +93,7 @@ def signup():
         return {"message": "Invalid username or password"}, 401
 
 
-# Login route
+# Login route (Route for all)
 @app.route("/api/v1/login", methods=["POST"])
 def login():
     # Perform user authentication here and return the token on success
@@ -109,7 +113,7 @@ def login():
     
 
 
-# Encrypt route
+# Encrypt route (Only for authenticated users)
 @app.route("/api/v1/encrypt", methods=["POST"])
 @jwt_required()
 def encrypt():
@@ -127,7 +131,7 @@ def encrypt():
     return {"encrypted_credit_card_number": encrypted_credit_card_number}
 
 
-# Decrypt route
+# Decrypt route (Only for authenticated user)
 @app.route("/api/v1/decrypt", methods=["POST"])
 @jwt_required()
 def decrypt():
@@ -144,7 +148,7 @@ def decrypt():
         return {"message": "Invalid encrypted data."}, 400
 
 
-# Add a new credit card for the user
+# Add a new credit card for the user (Only for authenticated user)
 @app.route("/api/v1/credit-cards", methods=["POST"])
 @jwt_required()
 def add_credit_card():
@@ -166,7 +170,7 @@ def add_credit_card():
     return {"message": "Credit card added successfully."}
 
 
-# Retrieve all credit cards for the authenticated user
+# Retrieve all credit cards for the authenticated user (Only for authenticated user)
 @app.route("/api/v1/credit-cards", methods=["GET"])
 @jwt_required()
 def get_credit_cards():
@@ -206,6 +210,56 @@ def delete_credit_card(credit_card_id):
 
     return {"message": "Credit card deleted successfully."}
 
+# Retrieve all users and their credit cards (only for admins)
+@app.route("/api/v1/users", methods=["GET"])
+@jwt_required()
+def get_all_users_and_credit_cards():
+    user = get_current_user()
+    if user.role != "admin":
+        return {"message": "Unauthorized. Insufficient permissions."}, 403
+    # querry all users and their credit cards information
+    session = Session()
+    users_credit_cards = {}
+    users = session.query(User).all()
+    for user in users:
+        credit_cards = [
+            {"id": card.id, "card_number": decrypt(card.card_number, user.id)}
+            for card in user.credit_cards
+        ]
+        users_credit_cards[user.username] = credit_cards
+    session.close()
+    
+    return jsonify(users_credit_cards)
+
+
+# Delete a credit card for a specific user (only for admins)
+@app.route("/api/v1/users/<int:user_id>/credit-cards/<int:credit_card_id>", methods=["DELETE"])
+@jwt_required()
+def delete_user_credit_card(user_id, credit_card_id):
+    user = get_current_user()
+    if user.role != "admin":
+        return {"message": "Unauthorized. Insufficient permissions."}, 403
+     # Check if the user exists
+    session = Session()
+    user_to_delete = session.query(User).filter_by(id=user_id).first()
+    if not user_to_delete:
+        session.close()
+        return {"message": "User not found."}, 404
+    
+    # Check if the credit card exists for the user
+    credit_card_to_delete = session.query(CreditCard).filter_by(id=credit_card_id, user_id=user_id).first()
+    if not credit_card_to_delete:
+        session.close()
+        return {"message": "Credit card not found."}, 404
+    
+    # Delete the credit card
+    session.delete(credit_card_to_delete)
+    session.commit()
+    session.close()
+    
+    return {"message": "Credit card deleted successfully."}
+
+  
 # Helper Functions
 def decrypt(encrypted_data, user_id):
     fernet = cryptography.fernet.Fernet(get_user_key(user_id))
