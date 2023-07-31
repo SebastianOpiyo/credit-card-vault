@@ -1,12 +1,12 @@
-FROM node:16-alpine
+FROM node:16-buster
 
 WORKDIR /app
 
-COPY package.json ./
+COPY client/package.json .
 
-RUN npm install
+RUN npm install --force
 
-COPY . .
+COPY client/ .
 
 RUN npm run build
 
