@@ -1,5 +1,5 @@
-const Credit = () => {
-    return <div>E-Commerce Site</div>;
+const Home = () => {
+    return <div>E-Commerce Credit Card Vault</div>;
   };
   
-  export default Credit;
+  export default Home;

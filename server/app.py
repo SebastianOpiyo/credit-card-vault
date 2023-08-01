@@ -3,9 +3,15 @@ from flask_jwt_extended import JWTManager, jwt_required, create_access_token, ge
 from flask_cors import CORS
 from sqlalchemy import Column, Integer, String, ForeignKey
 from flask_migrate import Migrate
+from dotenv import load_dotenv
+from flask_sqlalchemy import SQLAlchemy
 import os
 import base64
 import cryptography.fernet
+
+
+# Load the dotenv
+load_dotenv()
 
 # Get database connection info and the secret key from environment variables
 db_user = os.environ.get('PGUSER', 'creditcardvault')
