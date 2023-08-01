@@ -136,7 +136,7 @@ const Register = () => {
                   </Button>
                   <Flex>
                     <Text>Already have an account? </Text>
-                    <Link to="/">
+                    <Link to="/login">
                       <Box ml={2} color="blue.500">
                         Login
                       </Box>

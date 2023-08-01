@@ -133,7 +133,7 @@ const Login = () => {
                   </Button>
                   <Flex>
                     <Text>Don't have an account? </Text>
-                    <Link to="/register">
+                    <Link to="/signup">
                       <Box ml={2} color="blue.500">
                         Register
                       </Box>
