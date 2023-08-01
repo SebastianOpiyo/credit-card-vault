@@ -62,6 +62,13 @@ class CreditCard(db.Model):
 def generate_token(user_id):
     return create_access_token(identity=user_id)
 
+def get_current_user():
+    user_identity = get_jwt_identity()
+    if user_identity is None:
+        return None
+    user = User.query.filter_by(id=user_identity).first()
+    return user
+
 # ROUTES
 # Home route
 @app.get('/')
@@ -258,18 +265,17 @@ def get_all_users_and_credit_cards():
     user = get_current_user()
     if user.role != "admin":
         return {"message": "Unauthorized. Insufficient permissions."}, 403
-    # querry all users and their credit cards information
-    session = Session()
+    
+    # query all users and their credit cards information
     users_credit_cards = {}
-    users = session.query(User).all()
+    users = User.query.all()
     for user in users:
         credit_cards = [
             {"id": card.id, "card_number": decrypt(card.card_number, user.id)}
             for card in user.credit_cards
         ]
         users_credit_cards[user.username] = credit_cards
-    session.close()
-    
+
     return jsonify(users_credit_cards)
 
 
@@ -280,26 +286,22 @@ def delete_user_credit_card(user_id, credit_card_id):
     user = get_current_user()
     if user.role != "admin":
         return {"message": "Unauthorized. Insufficient permissions."}, 403
-     # Check if the user exists
-    session = Session()
-    user_to_delete = session.query(User).filter_by(id=user_id).first()
+    
+    # Check if the user exists
+    user_to_delete = User.query.filter_by(id=user_id).first()
     if not user_to_delete:
-        session.close()
         return {"message": "User not found."}, 404
     
     # Check if the credit card exists for the user
-    credit_card_to_delete = session.query(CreditCard).filter_by(id=credit_card_id, user_id=user_id).first()
+    credit_card_to_delete = CreditCard.query.filter_by(id=credit_card_id, user_id=user_id).first()
     if not credit_card_to_delete:
-        session.close()
         return {"message": "Credit card not found."}, 404
     
     # Delete the credit card
-    session.delete(credit_card_to_delete)
-    session.commit()
-    session.close()
+    db.session.delete(credit_card_to_delete)
+    db.session.commit()
     
     return {"message": "Credit card deleted successfully."}
-
   
 # Helper Functions
 def decrypt(encrypted_data, user_id):
@@ -319,10 +321,6 @@ def get_user_key(user_id):
         return user.get_fernet_key()
     except Exception as e:
         return {"message": str(e)}, 500
-
-# @app.before_first_request
-# def create_tables():
-#     db.create_all()
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8000)
