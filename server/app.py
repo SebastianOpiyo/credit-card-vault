@@ -1,17 +1,13 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity, get_current_user
-from flask_cors import CORS
-from sqlalchemy import Column, Integer, String, ForeignKey
-from flask_migrate import Migrate
-from dotenv import load_dotenv
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_cors import CORS
+from sqlalchemy import Column, Integer, String, ForeignKey, Date
+from flask_migrate import Migrate
 import os
 import base64
 import cryptography.fernet
-
-
-# Load the dotenv
-load_dotenv()
 
 # Get database connection info and the secret key from environment variables
 db_user = os.environ.get('PGUSER', 'creditcardvault')
@@ -21,7 +17,7 @@ db_name = os.environ.get('PGDATABASE', 'creditcardvault')
 db_port = os.environ.get('PGPORT', '5432')
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS to allow requests from frontend
+CORS(app, supports_credentials=True)  # Enable CORS to allow requests from frontend
 
 # JWT Config
 app.config["JWT_SECRET_KEY"] = os.environ.get('SECRET_KEY', 'mX&dpNmuaKq8HB$@wLvk*n9V!AYD7X@EJhTmGh6fW@zXQMe9EY!t8rQfNPybyyW!')  # Change this to a secure secret key in production
@@ -38,10 +34,13 @@ migrate = Migrate(app, db)
 class User(db.Model):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
-    username = Column(String(100), unique=True, nullable=False)
-    password = Column(String(100), nullable=False)
-    fernet_key = Column(String(100), nullable=False)
-    role = Column(String(20), default="user", nullable=False)
+    username = Column(String(255), unique=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    fernet_key = Column(String(500), nullable=False)  # this will be base64 encoded key
+    credit_cards = db.relationship("CreditCard", backref="user")
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
@@ -50,19 +49,19 @@ class User(db.Model):
         # convert base64 string to bytes before returning
         return base64.urlsafe_b64decode(self.fernet_key)
 
-
 # Credit Card Model
 class CreditCard(db.Model):
     __tablename__ = "credit_cards"
     id = Column(Integer, primary_key=True)
-    card_number = Column(String(100), nullable=False)
-    cvv = Column(String(10), nullable=False)
-    expiry_date = Column(String(10), nullable=False)
+    card_number = Column(String(16), nullable=False)
+    cvv = Column(String(3), nullable=False)
+    expiry_date = Column(Date, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"))
 
 # Helper functions
 def generate_token(user_id):
     return create_access_token(identity=user_id)
+
 
 # ROUTES
 
@@ -108,7 +107,7 @@ def signup():
 @app.route("/api/v1/login", methods=["POST"])
 def login():
     # Perform user authentication here and return the token on success
-    username = request.json.get("username")
+    username = request.json.get("email")
     password = request.json.get("password")
     
     if not username or not password:
@@ -174,22 +173,33 @@ def decrypt():
     except Exception as e:
         return {"message": str(e)}, 500
 
+
 # Add a new credit card for the user (Only for authenticated user)
 @app.route("/api/v1/credit-cards", methods=["POST"])
-@jwt_required()
 @jwt_required()
 def add_credit_card():
     try:
         user_id = get_jwt_identity()
-        credit_card_number = request.json.get("credit_card_number")
-        if not credit_card_number:
-            return {"message": "Credit card number is required."}, 400
+        data = request.json
 
-        key = cryptography.fernet.Fernet.generate_key()
-        fernet = cryptography.fernet.Fernet(key)
-        encrypted_credit_card_number = fernet.encrypt(credit_card_number.encode())
+        card_number = data.get("card_number")
+        cvv = data.get("cvv")
+        expiry_date = data.get("expiry_date")
 
-        credit_card = CreditCard(card_number=encrypted_credit_card_number, user_id=user_id)
+        if not card_number or not cvv or not expiry_date:
+            return {"message": "Credit card information is required."}, 400
+
+        # Encrypt the credit card number
+        fernet = cryptography.fernet.Fernet(get_user_key(user_id))
+        encrypted_card_number = fernet.encrypt(card_number.encode()).decode()
+
+        credit_card = CreditCard(
+            card_number=encrypted_card_number,
+            cvv=cvv,
+            expiry_date=expiry_date,
+            user_id=user_id
+        )
+
         db.session.add(credit_card)
         db.session.commit()
         return {"message": "Credit card added successfully."}
@@ -203,18 +213,18 @@ def add_credit_card():
 def get_credit_cards():
     try:
         user_id = get_jwt_identity()
-        credit_cards = (
-            db.session.query(CreditCard)
-            .filter_by(user_id=user_id)
-            .with_entities(CreditCard.id, CreditCard.card_number)
-            .all()
-        )
+        credit_cards = CreditCard.query.filter_by(user_id=user_id).all()
 
         decrypted_credit_cards = []
-        for card_id, encrypted_card_number in credit_cards:
+        for card in credit_cards:
             fernet = cryptography.fernet.Fernet(get_user_key(user_id))
-            decrypted_card_number = fernet.decrypt(encrypted_card_number).decode()
-            decrypted_credit_cards.append({"id": card_id, "card_number": decrypted_card_number})
+            decrypted_card_number = fernet.decrypt(card.card_number.encode()).decode()
+            decrypted_credit_cards.append({
+                "id": card.id,
+                "card_number": decrypted_card_number,
+                "cvv": card.cvv,
+                "expiry_date": card.expiry_date.isoformat(),
+            })
 
         return {"credit_cards": decrypted_credit_cards}
 

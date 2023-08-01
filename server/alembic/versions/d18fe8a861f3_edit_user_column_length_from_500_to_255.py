@@ -1,8 +1,8 @@
-"""Homelab migration
+"""Edit user column length from 500 to 255.
 
-Revision ID: dd15135da4c8
-Revises: c15947d2b7e8
-Create Date: 2023-07-31 21:20:47.206248
+Revision ID: d18fe8a861f3
+Revises: 6cdcbea9b11d
+Create Date: 2023-08-01 16:13:53.022675
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'dd15135da4c8'
-down_revision = 'c15947d2b7e8'
+revision = 'd18fe8a861f3'
+down_revision = '6cdcbea9b11d'
 branch_labels = None
 depends_on = None
 
