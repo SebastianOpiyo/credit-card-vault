@@ -1,12 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import React, { useEffect, useState } from "react";
+import axios from "axios";
 
 const Dashboard = () => {
   const [users, setUsers] = useState([]);
 
   useEffect(() => {
     axios
-      .get('http://localhost:8000/api/v1/users', { headers: { Authorization: `Bearer ${YOUR_ADMIN_TOKEN}` } })
+      .get("http://localhost:8000/api/v1/users", {
+        headers: { Authorization: `Bearer ${YOUR_ADMIN_TOKEN}` },
+      })
       .then((response) => {
         setUsers(response.data);
       })
