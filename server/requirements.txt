@@ -16,7 +16,7 @@ psycopg2-binary==2.9.6
 pybase64==1.2.3
 pycparser==2.21
 PyJWT==2.8.0
+python-dotenv==1.0.0
 SQLAlchemy==2.0.19
 typing_extensions==4.7.1
 Werkzeug==2.3.6
-python-dotenv
