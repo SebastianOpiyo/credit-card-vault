@@ -17,7 +17,7 @@ import { useState } from "react";
 
 const Register = () => {
   const passwordRegex = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[a-zA-Z]).{8,}$/;
-  const BASEURL = "localhost4000";
+  const BASEURL = "http://127.0.0.1:8000/api/v1";
 
   const [errMsg, setErrMsg] = useState("");
   const [loading, setLoading] = useState(false);

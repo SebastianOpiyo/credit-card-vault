@@ -15,13 +15,15 @@ import { Formik } from "formik";
 import * as Yup from "yup";
 import axios from "axios";
 import { useState } from "react";
+import { useAuth } from "../contextt/AuthContext";
 
 const Login = () => {
   const [errMsg, setErrMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const {token, setToken} = useAuth()
 
-  const BASEURL = "http://127.0.0.1:5000/v1";
+  const BASEURL = "http://127.0.0.1:8000/api/v1";
 
   const handleSubmit = async (values, actions) => {
     setLoading(true);
@@ -37,9 +39,19 @@ const Login = () => {
         }
       );
 
-      console.log("response", response);
+      console.log(response.data.token)
 
-      navigate("/credit");
+      // Extract the token from the response
+      const token = response.data.token
+
+      // Save the token to your state using the setAuthToken function from the AuthContext
+      try {
+        setToken(token);
+      } catch (error) {
+        console.log(error);
+      }
+      
+      navigate("/credit-card");
       actions.resetForm();
       setLoading(false);
     } catch (err) {
