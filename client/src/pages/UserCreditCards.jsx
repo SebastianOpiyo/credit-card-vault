@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { useAuth } from "../contextt/AuthContext"; // AuthContext hook
 
 const UserCreditCards = () => {
   const [creditCards, setCreditCards] = useState([]);
+    // Access the token from the AuthContext
+  const { token } = useAuth()
 
   useEffect(() => {
     axios
