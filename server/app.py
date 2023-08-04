@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, current_app
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity, get_current_user
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -20,13 +20,22 @@ app = Flask(__name__)
 CORS(app, supports_credentials=True)  # Enable CORS to allow requests from frontend
 
 # JWT Config
+
 app.config["JWT_SECRET_KEY"] = os.environ.get('SECRET_KEY', 'mX&dpNmuaKq8HB$@wLvk*n9V!AYD7X@EJhTmGh6fW@zXQMe9EY!t8rQfNPybyyW!')  # Change this to a secure secret key in production
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 1800  # Token expires after 30 minutes
+app.config["JWT_ALGORITHM "] = "HS256" 
+app.config["JWT_REFRESH_TOKEN_EXPIRES "] = 3600
+app.config["JWT_USER_ID_CLAIM "] = "user_id"
+app.config["JWT_USER_CLAIMS_PAYLOAD "] = {
+    "username": "email",
+    "role": "role"
+}
+app.config["JWT_USER_LOOKUP_LOADER  "] = "flask_jwt_extended.utils.get_user_by_id"
 jwt = JWTManager(app)
 
 # SQLAlchemy config
 app.config['SQLALCHEMY_DATABASE_URI'] = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # to silence deprecation warning
-app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 1800  # Token expires after 30 minutes
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
@@ -55,14 +64,24 @@ class User(db.Model):
 class CreditCard(db.Model):
     __tablename__ = "credit_cards"
     id = Column(Integer, primary_key=True)
-    card_number = Column(String(16), nullable=False)
+    card_number = Column(String(500), nullable=False)
     cvv = Column(String(3), nullable=False)
     expiry_date = Column(Date, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"))
 
-# Helper functions
-def generate_token(user_id):
-    return create_access_token(identity=user_id, secret_key=app.config["JWT_SECRET_KEY"])
+# HELPER FUNCTIONS
+def user_lookup_loader(jwt_token):
+    user_id = jwt_token.get("user_id")
+
+    if user_id is None:
+        return None
+
+    user = current_app.db.query(User).filter_by(id=user_id).first()
+
+    if user is None:
+        return None
+
+    return user
 
 
 # ROUTES
@@ -83,7 +102,7 @@ def signup():
     try:
         username = request.json.get("email")
         password = request.json.get("password")
-        role = request.json.get("role", "user")  # Default role to "user" if not provided
+        role = request.json.get("role", "admin")  # Default role to "user" if not provided
 
         if not username or not password:
             return {"message": "Username and password are required."}, 400
@@ -119,7 +138,7 @@ def login():
     user = User.query.filter_by(username=username).first()
     
     if user and user.check_password(password):
-        token = generate_token(user.id)
+        token = create_access_token(user.id)
         return {"token": token }
     else:
         return {"message": "Invalid username or password."}, 401
