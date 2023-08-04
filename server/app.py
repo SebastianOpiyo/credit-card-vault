@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity, get_current_user
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -26,6 +26,7 @@ jwt = JWTManager(app)
 # SQLAlchemy config
 app.config['SQLALCHEMY_DATABASE_URI'] = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # to silence deprecation warning
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 1800  # Token expires after 30 minutes
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
@@ -37,6 +38,7 @@ class User(db.Model):
     username = Column(String(255), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     fernet_key = Column(String(500), nullable=False)  # this will be base64 encoded key
+    role = Column(String(50), default="user", nullable=False)  # Add the 'role' attribute with a default value
     credit_cards = db.relationship("CreditCard", backref="user")
 
     def set_password(self, password):
@@ -60,7 +62,7 @@ class CreditCard(db.Model):
 
 # Helper functions
 def generate_token(user_id):
-    return create_access_token(identity=user_id)
+    return create_access_token(identity=user_id, secret_key=app.config["JWT_SECRET_KEY"])
 
 
 # ROUTES
@@ -79,8 +81,9 @@ def home():
 @app.route("/api/v1/signup", methods=["POST"])
 def signup():
     try:
-        username = request.json.get("username")
+        username = request.json.get("email")
         password = request.json.get("password")
+        role = request.json.get("role", "user")  # Default role to "user" if not provided
 
         if not username or not password:
             return {"message": "Username and password are required."}, 400
@@ -90,7 +93,7 @@ def signup():
         if user:
             return {"message": "User already exists"}, 400
         else:
-            new_user = User(username=username)
+            new_user = User(username=username, role=role)
 
             # Generate Fernet key for user
             fernet_key = base64.urlsafe_b64encode(cryptography.fernet.Fernet.generate_key())
@@ -180,6 +183,7 @@ def decrypt():
 def add_credit_card():
     try:
         user_id = get_jwt_identity()
+        print(user_id)
         data = request.json
 
         card_number = data.get("card_number")
@@ -264,7 +268,10 @@ def get_all_users_and_credit_cards():
             {"id": card.id, "card_number": decrypt(card.card_number, user.id)}
             for card in user.credit_cards
         ]
-        users_credit_cards[user.username] = credit_cards
+        users_credit_cards[user.username] = {
+            "role": user.role,
+            "credit_cards": credit_cards
+        }
     session.close()
     
     return jsonify(users_credit_cards)

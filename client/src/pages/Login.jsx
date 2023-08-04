@@ -41,10 +41,16 @@ const Login = () => {
 
       console.log(response.data.token)
 
-      // setToken(response.token)
+      // Extract the token from the response
+      const token = response.data.token
 
- 
-
+      // Save the token to your state using the setAuthToken function from the AuthContext
+      try {
+        setToken(token);
+      } catch (error) {
+        console.log(error);
+      }
+      
       navigate("/credit-card");
       actions.resetForm();
       setLoading(false);
@@ -139,7 +145,7 @@ const Login = () => {
                   </Button>
                   <Flex>
                     <Text>Don't have an account? </Text>
-                    <Link to="/register">
+                    <Link to="/signup">
                       <Box ml={2} color="blue.500">
                         Register
                       </Box>
