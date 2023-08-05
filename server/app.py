@@ -21,16 +21,16 @@ CORS(app, supports_credentials=True)  # Enable CORS to allow requests from front
 
 # JWT Config
 
-app.config["JWT_SECRET_KEY"] = os.environ.get('SECRET_KEY', 'mX&dpNmuaKq8HB$@wLvk*n9V!AYD7X@EJhTmGh6fW@zXQMe9EY!t8rQfNPybyyW!')  # Change this to a secure secret key in production
-app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 1800  # Token expires after 30 minutes
-app.config["JWT_ALGORITHM "] = "HS256" 
-app.config["JWT_REFRESH_TOKEN_EXPIRES "] = 3600
-app.config["JWT_USER_ID_CLAIM "] = "user_id"
-app.config["JWT_USER_CLAIMS_PAYLOAD "] = {
+app.config["JWT_SECRET_KEY"] = os.environ.get('SECRET_KEY', 'mX&dpNmuaKq8HB$@wLvk*n9V!AYD7X@EJhTmGh6fW@zXQMe9EY!t8rQfNPybyyW!')
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 1800
+app.config["JWT_ALGORITHM"] = "HS256"
+app.config["JWT_REFRESH_TOKEN_EXPIRES"] = 3600
+app.config["JWT_USER_ID_CLAIM"] = "user_id"
+app.config["JWT_USER_CLAIMS_PAYLOAD"] = {
     "username": "email",
     "role": "role"
 }
-app.config["JWT_USER_LOOKUP_LOADER  "] = "flask_jwt_extended.utils.get_user_by_id"
+
 jwt = JWTManager(app)
 
 # SQLAlchemy config
@@ -38,6 +38,21 @@ app.config['SQLALCHEMY_DATABASE_URI'] = f"postgresql://{db_user}:{db_password}@{
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # to silence deprecation warning
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+
+
+# Helper function for user lookup
+@jwt.user_identity_loader
+def _user_identity_lookup(user):
+    return user.id
+
+@jwt.user_lookup_loader
+def _user_lookup_callback(_jwt_header, jwt_data):
+    identity = jwt_data["sub"]
+    user = User.query.filter_by(id=identity).first()
+    if user is None:
+        return None
+    return user
+
 
 # Database Models
 # User Model
@@ -68,20 +83,6 @@ class CreditCard(db.Model):
     cvv = Column(String(3), nullable=False)
     expiry_date = Column(Date, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"))
-
-# HELPER FUNCTIONS
-def user_lookup_loader(jwt_token):
-    user_id = jwt_token.get("user_id")
-
-    if user_id is None:
-        return None
-
-    user = current_app.db.query(User).filter_by(id=user_id).first()
-
-    if user is None:
-        return None
-
-    return user
 
 
 # ROUTES
@@ -243,10 +244,11 @@ def get_credit_cards():
         for card in credit_cards:
             fernet = cryptography.fernet.Fernet(get_user_key(user_id))
             decrypted_card_number = fernet.decrypt(card.card_number.encode()).decode()
+            decrypted_cvv_number = fernet.decrypt(card.cvv.encode()).decode()
             decrypted_credit_cards.append({
                 "id": card.id,
                 "card_number": decrypted_card_number,
-                "cvv": card.cvv,
+                "cvv": decrypted_cvv_number,
                 "expiry_date": card.expiry_date.isoformat(),
             })
 
@@ -276,13 +278,15 @@ def delete_credit_card(credit_card_id):
 @app.route("/api/v1/users", methods=["GET"])
 @jwt_required()
 def get_all_users_and_credit_cards():
-    user = get_current_user()
-    if user.role != "admin":
+    user_id = get_jwt_identity()
+    user = User.query.filter_by(id=user_id).first()
+
+    if not user and user.role != "admin":
         return {"message": "Unauthorized. Insufficient permissions."}, 403
+    
     # querry all users and their credit cards information
-    session = Session()
     users_credit_cards = {}
-    users = session.query(User).all()
+    users = User.query.all()
     for user in users:
         credit_cards = [
             {"id": card.id, "card_number": decrypt(card.card_number, user.id)}
@@ -292,7 +296,6 @@ def get_all_users_and_credit_cards():
             "role": user.role,
             "credit_cards": credit_cards
         }
-    session.close()
     
     return jsonify(users_credit_cards)
 
@@ -304,23 +307,23 @@ def delete_user_credit_card(user_id, credit_card_id):
     user = get_current_user()
     if user.role != "admin":
         return {"message": "Unauthorized. Insufficient permissions."}, 403
-     # Check if the user exists
-    session = Session()
-    user_to_delete = session.query(User).filter_by(id=user_id).first()
+    
+    # Check if the user exists
+    user_to_delete = db.session.query(User).filter_by(id=user_id).first()
     if not user_to_delete:
-        session.close()
+        db.session.close()
         return {"message": "User not found."}, 404
     
     # Check if the credit card exists for the user
-    credit_card_to_delete = session.query(CreditCard).filter_by(id=credit_card_id, user_id=user_id).first()
+    credit_card_to_delete = db.session.query(CreditCard).filter_by(id=credit_card_id, user_id=user_id).first()
     if not credit_card_to_delete:
-        session.close()
+        db.session.close()
         return {"message": "Credit card not found."}, 404
     
     # Delete the credit card
-    session.delete(credit_card_to_delete)
-    session.commit()
-    session.close()
+    db.session.delete(credit_card_to_delete)
+    db.session.commit()
+    db.session.close()
     
     return {"message": "Credit card deleted successfully."}
 
