@@ -215,10 +215,11 @@ def add_credit_card():
         # Encrypt the credit card number
         fernet = cryptography.fernet.Fernet(get_user_key(user_id))
         encrypted_card_number = fernet.encrypt(card_number.encode()).decode()
+        encrypted_cvv = fernet.encrypt(cvv.encode()).decode()
 
         credit_card = CreditCard(
             card_number=encrypted_card_number,
-            cvv=cvv,
+            cvv=encrypted_cvv,
             expiry_date=expiry_date,
             user_id=user_id
         )
