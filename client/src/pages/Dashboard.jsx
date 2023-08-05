@@ -1,13 +1,17 @@
 import React, { useEffect, useState } from "react";
+import { useAuth } from "../contextt/AuthContext"; // AuthContext hook
 import axios from "axios";
 
 const Dashboard = () => {
   const [users, setUsers] = useState([]);
+    // Access the token from the AuthContext
+    const { token } = useAuth()
+
 
   useEffect(() => {
     axios
       .get("http://localhost:8000/api/v1/users", {
-        headers: { Authorization: `Bearer ${YOUR_ADMIN_TOKEN}` },
+        headers: { Authorization: `Bearer ${token}` },
       })
       .then((response) => {
         setUsers(response.data);
